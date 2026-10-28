@@ -13,6 +13,17 @@ There are two versions, which share `bootlogo_core.py`:
 
 Both do the encryption themselves; no `openssl` is needed.
 
+## Download
+
+Windows users: get **`SindohBootLogo.exe`** from the
+[Releases page](https://github.com/catawalks/sindoh-boot-logo/releases/latest);
+no Python needed. Windows SmartScreen may warn because the program isn't
+signed: *More info* → *Run anyway*. The release also has a zip with a sample
+logo and a ready-made DP200 USB stick ([`samples/`](samples/)).
+
+This tool started in [catawalks/sindoh](https://github.com/catawalks/sindoh),
+the notes on the Sindoh DP200's firmware (and a Klipper port for it).
+
 ## Supported printers
 
 | Model | Screen (draw upright at) | Logo format | Where it lives | USB folder |
