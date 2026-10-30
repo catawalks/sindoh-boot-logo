@@ -2,7 +2,7 @@
 """Sindoh Boot Logo Maker - window version of sindoh_bootlogo.py.
 
 Pick a picture, place it on the printer's screen (drag to move, mouse wheel
-to zoom, rotate, flip), choose the printer model and the progress bar colour,
+to zoom, rotate, flip), choose the printer model and the progress bar color,
 then save the USB update files. Needs Python 3.8+ with Tk and Pillow, or the
 packaged SindohBootLogo.exe (no Python needed).
 """
@@ -32,7 +32,7 @@ class App:
         self.raw_exact = False       # loaded from a raw .bin: keep it exact
         self.key = None
         self.bg = (0, 0, 0)
-        self.dx = self.dy = 0.0      # picture centre offset, screen pixels
+        self.dx = self.dy = 0.0      # picture center offset, screen pixels
         self.flip = False
         self.drag = None
         self.busy = False
@@ -43,11 +43,11 @@ class App:
         self.invert = tk.BooleanVar(value=False)
         self.dither = tk.BooleanVar(value=True)
         self.show565 = tk.BooleanVar(value=True)
-        self.bar = tk.StringVar(value="auto")
+        self.bar = tk.StringVar(value="auto")   # "auto", or core.BAR_COLORS value
         self.dry = tk.BooleanVar(value=False)
         self.status = tk.StringVar(value="Open a picture to start.")
         self.key_status = tk.StringVar(value="built-in key")
-        self.bar_auto_text = tk.StringVar(value="Automatic")
+        self.bar_auto_text = tk.StringVar(value="Auto")
 
         self._build_ui()
         self.redraw()
@@ -106,17 +106,17 @@ class App:
                                     ("Reset", self.reset))):
             ttk.Button(b, text=t, command=c).grid(row=0, column=i, padx=(0, 4))
 
-        # 3. colours
-        f = ttk.LabelFrame(right, text="3. Colours", padding=8)
+        # 3. colors
+        f = ttk.LabelFrame(right, text="3. Colors", padding=8)
         f.grid(row=2, column=0, sticky="ew", pady=(8, 0))
-        ttk.Button(f, text="Background colour...", command=self.pick_bg).grid(row=0, column=0, sticky="w")
+        ttk.Button(f, text="Background color...", command=self.pick_bg).grid(row=0, column=0, sticky="w")
         self.bg_swatch = tk.Label(f, width=4, bg="#000000", relief="solid", bd=1)
         self.bg_swatch.grid(row=0, column=1, padx=6)
-        ttk.Checkbutton(f, text="Invert colours", variable=self.invert,
+        ttk.Checkbutton(f, text="Invert colors", variable=self.invert,
                         command=self.changed).grid(row=0, column=2, padx=(12, 0))
         ttk.Checkbutton(f, text="Dither (smoother photos and gradients)",
                         variable=self.dither).grid(row=1, column=0, columnspan=3, sticky="w", pady=(4, 0))
-        ttk.Checkbutton(f, text="Preview in the screen's own colours", variable=self.show565,
+        ttk.Checkbutton(f, text="Preview in the screen's own colors", variable=self.show565,
                         command=self.redraw).grid(row=2, column=0, columnspan=3, sticky="w")
 
         # 4. printer
@@ -129,15 +129,19 @@ class App:
         self.model_box.grid(row=0, column=1, columnspan=3, sticky="w", padx=6)
         self.model_box.bind("<<ComboboxSelected>>", self.on_model)
         self.fit_canvas()
-        ttk.Label(f, text="Boot progress bar").grid(row=1, column=0, sticky="w", pady=(6, 0))
-        ttk.Radiobutton(f, textvariable=self.bar_auto_text, value="auto",
-                        variable=self.bar).grid(row=1, column=1, sticky="w", padx=6, pady=(6, 0))
-        ttk.Radiobutton(f, text="0 (dark logos)", value="0",
-                        variable=self.bar).grid(row=2, column=1, sticky="w", padx=6)
-        ttk.Radiobutton(f, text="1 (light logos)", value="1",
-                        variable=self.bar).grid(row=2, column=2, sticky="w")
-        ttk.Radiobutton(f, text="Leave as is", value="keep",
-                        variable=self.bar).grid(row=2, column=3, sticky="w", padx=6)
+        ttk.Label(f, text="Boot progress bar color").grid(row=1, column=0, sticky="w", pady=(6, 0))
+        b = ttk.Frame(f)
+        b.grid(row=1, column=1, columnspan=3, sticky="w", padx=6, pady=(6, 0))
+        # Light = white bar (U-Boot bar_color 0), Dark = black bar (1)
+        for i, (text, value) in enumerate(((None, "auto"),
+                                           ("Dark", core.BAR_COLORS["dark"]),
+                                           ("Light", core.BAR_COLORS["light"]))):
+            rb = ttk.Radiobutton(b, value=value, variable=self.bar)
+            if text:
+                rb.config(text=text)
+            else:
+                rb.config(textvariable=self.bar_auto_text)
+            rb.grid(row=0, column=i, sticky="w", padx=(0, 10))
         ttk.Label(f, text="Key (built in)").grid(row=3, column=0, sticky="w", pady=(6, 0))
         ttk.Button(f, text="Key file...", command=self.load_key).grid(row=3, column=1, sticky="w", padx=6, pady=(6, 0))
         ttk.Button(f, text="Type key...", command=self.type_key).grid(row=3, column=2, sticky="w", pady=(6, 0))
@@ -211,7 +215,7 @@ class App:
         im = self.compose(True)
         if self.show565.get():
             im = core.preview(im, core.MODELS[self.model_key()])
-        self.bar_auto_text.set(f"Automatic ({core.auto_bar_color(im)})")
+        self.bar_auto_text.set(f"Auto ({core.BAR_NAMES[core.auto_bar_color(im)]})")
         self.tkimg = ImageTk.PhotoImage(im)
         self.canvas.delete("all")
         self.canvas.create_image(0, 0, image=self.tkimg, anchor="nw")
@@ -305,7 +309,7 @@ class App:
             self.redraw()
 
     def pick_bg(self):
-        c = colorchooser.askcolor(color="#%02x%02x%02x" % self.bg, title="Background colour")
+        c = colorchooser.askcolor(color="#%02x%02x%02x" % self.bg, title="Background color")
         if c and c[0]:
             self.bg = tuple(int(v) for v in c[0])
             self.bg_swatch.config(bg=c[1])
@@ -391,7 +395,7 @@ class App:
                 raw = core.to_raw(upright, m, dither)
                 b = core.auto_bar_color(core.from_raw(raw, m)) if bar == "auto" else bar
                 path = core.build_usb(raw, model, key, b, out, dry)
-                msg = (f"Saved {path} (verified), progress bar {b}"
+                msg = (f"Saved {path} (verified), progress bar {core.BAR_NAMES[b]}"
                        f"{', DRY RUN' if dry else ''}.\nlogo md5 {hashlib.md5(raw).hexdigest()}\n\n"
                        "Plug the stick into the printer and touch the screen when asked. "
                        "The stick keeps the old logo as bootlogo_original.bin.")

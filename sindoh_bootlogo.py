@@ -18,8 +18,9 @@ The boot logo is one raw frame-buffer image that U-Boot shows at power-on:
   2x, 1x         800 x 480 24-bit (BGR) in "boot-logo" or /boot/bootlogo.bin
   7x             1024 x 600 RGB565 in /boot/bootlogo.bin
 The 800 x 480 panels are mounted in portrait, so draw those logos upright at
-480 x 800; the tool turns them. U-Boot draws a progress bar over the logo;
-its colour is the U-Boot variable bar_color (0 for dark logos, 1 for light).
+480 x 800; the tool turns them. A progress bar is drawn over the logo; its
+color is the U-Boot variable bar_color: --bar-color light (0, a white bar,
+for dark logos) or dark (1, a black bar, for light logos).
 
 Other commands:
     python sindoh_bootlogo.py --decode bootlogo_original.bin original.png
@@ -45,7 +46,7 @@ import bootlogo_core as core
 
 def fit_image(path, size, fit, bg):
     im = ImageOps.exif_transpose(Image.open(path))
-    # flatten transparency onto the background colour
+    # flatten transparency onto the background color
     im = im.convert("RGBA")
     base = Image.new("RGBA", im.size, bg + (255,))
     im = Image.alpha_composite(base, im).convert("RGB")
@@ -72,12 +73,16 @@ def main():
     ap.add_argument("--fit", choices=("contain", "cover", "stretch"), default="contain",
                     help="contain: whole picture, bars around it (default); "
                          "cover: fill the screen, crop edges; stretch: distort to fit")
-    ap.add_argument("--bg", default="black", help="background colour for 'contain' and transparency")
-    ap.add_argument("--invert", action="store_true", help="invert the picture's colours")
+    ap.add_argument("--bg", default="black", help="background color for 'contain' and transparency")
+    ap.add_argument("--invert", action="store_true", help="invert the picture's colors")
     ap.add_argument("--no-dither", action="store_true",
-                    help="plain rounding to 16-bit colour (best for flat-colour logos)")
-    ap.add_argument("--bar-color", choices=("auto", "0", "1", "keep"), default="auto",
-                    help="progress bar colour: 0 for dark logos, 1 for light ones (auto: from the picture)")
+                    help="plain rounding to 16-bit color (best for flat-color logos)")
+    ap.add_argument("--bar-color", type=str.lower,
+                    choices=("auto", "light", "dark", "0", "1", "keep"), default="auto",
+                    help="boot progress bar color: light (white bar, for dark logos), "
+                         "dark (black bar, for light logos), auto (from the picture, "
+                         "default) or keep (leave as is). 0 = light and 1 = dark, the "
+                         "U-Boot values, also work")
     ap.add_argument("--dry-run", action="store_true",
                     help="the stick only runs the checks and writes nothing")
     ap.add_argument("--out", default="bootlogo_usb", help="output folder (default: bootlogo_usb)")
@@ -123,7 +128,7 @@ def main():
         try:
             bg = ImageColor.getrgb(a.bg)[:3]
         except ValueError:
-            sys.exit(f"unknown colour: {a.bg}")
+            sys.exit(f"unknown color: {a.bg}")
         upright = fit_image(a.image, m["upright"], a.fit, bg)
         if a.invert:
             upright = ImageOps.invert(upright)
@@ -133,7 +138,7 @@ def main():
     if a.bar_color == "auto":
         bar = core.auto_bar_color(upright) if upright else "keep"
     else:
-        bar = a.bar_color
+        bar = core.bar_value(a.bar_color)
     she = core.build_usb(raw, a.model, key, bar, a.out, a.dry_run)
     os.makedirs(a.out, exist_ok=True)
     open(os.path.join(a.out, "bootlogo_new.bin"), "wb").write(raw)
@@ -142,7 +147,7 @@ def main():
 
     print(f"wrote {she}  (verified)" + ("  DRY RUN" if a.dry_run else ""))
     print(f"preview (as the screen shows it): {os.path.join(a.out, 'bootlogo_preview.png')}")
-    print(f"progress bar colour: {bar}   logo md5: {hashlib.md5(raw).hexdigest()}")
+    print(f"progress bar color: {core.BAR_NAMES[bar]} (bar_color {bar})   logo md5: {hashlib.md5(raw).hexdigest()}")
     print(f"Copy the {m['folder']} folder to the root of a FAT32 USB stick, plug it into\n"
           "the printer and touch the screen when asked. The stick keeps the old logo\n"
           "as bootlogo_original.bin.")

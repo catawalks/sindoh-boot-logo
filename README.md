@@ -44,9 +44,10 @@ isn't known yet; see the end of this page.
   newer 2X load the file `/boot/bootlogo.bin` from the eMMC. The 800 × 480
   panels are mounted in portrait, so those logos are stored turned 90°.
   Draw your logo upright; the tool turns it.
-- **Progress bar:** a progress bar is drawn over the logo. Its colour is the
-  U-Boot variable `bar_color`: Sindoh uses 0 for dark logos (Sindoh,
-  Leon3D) and 1 for light ones (Stanley, Mimaki).
+- **Progress bar:** a progress bar is drawn over the logo. Its color is the
+  U-Boot variable `bar_color`: 0 draws a white (light) bar, 1 a black
+  (dark) one. Sindoh uses 0 for dark logos (Sindoh, Leon3D) and 1 for light
+  ones (Stanley, Mimaki).
 - **The stock logos:** DP200 and 3DWOX 1 have them in
   `/app/boot-logo_{sindoh,stanley,leon3d,mimaki}.bin`, and the others in
   `/boot/bootlogo_{sindoh,leon3d,rize}.bin`.
@@ -65,12 +66,12 @@ isn't known yet; see the end of this page.
    - drag the picture to move it, use the mouse wheel to zoom, or use the
      Size / Rotate sliders, *Rotate 90*, *Mirror*, *Fit whole picture*,
      *Fill screen*, *Center*;
-   - pick a background colour, *Invert colours*, and *Dither* (on for
-     photos and gradients, off for flat-colour logos; it only matters on
-     the 16-bit screens). The preview shows the screen's own colours;
+   - pick a background color, *Invert colors*, and *Dither* (on for
+     photos and gradients, off for flat-color logos; it only matters on
+     the 16-bit screens). The preview shows the screen's own colors;
    - choose the printer model (the preview changes to its screen) and the
-     boot progress bar colour: Automatic,
-     0 (dark logos), 1 (light logos) or *Leave as is*;
+     *Boot progress bar color*: *Auto* (picks from the picture), *Dark*
+     (a black bar, for light logos) or *Light* (a white bar, for dark logos);
    - the update key is built in. If your printer uses another one,
      **Key file...** loads the `crypto_key.dat` from your printer's `/app`, or
      **Type key...** takes it as text.
@@ -106,14 +107,14 @@ python sindoh_bootlogo.py bootlogo_original.bin --model dp200
 
 | Option | |
 |---|---|
-| `--fit contain` | whole picture, with `--bg` colour bars around it (default) |
+| `--fit contain` | whole picture, with `--bg` color bars around it (default) |
 | `--fit cover` | fill the screen, crop the edges |
 | `--model` | `dp200` (default), `3dwox1`, `2x`, `1x`, `7x` |
 | `--fit stretch` | distort to the screen size |
-| `--bg COLOUR` | background for `contain` and transparent areas (default black) |
-| `--invert` | invert the picture's colours |
-| `--no-dither` | plain rounding to 16-bit colour, best for flat-colour logos. The default dithers, best for photos and gradients. (24-bit models need neither.) |
-| `--bar-color auto/0/1/keep` | progress bar colour; `auto` uses 0 for dark pictures and 1 for light ones |
+| `--bg COLOR` | background for `contain` and transparent areas (default black) |
+| `--invert` | invert the picture's colors |
+| `--no-dither` | plain rounding to 16-bit color, best for flat-color logos. The default dithers, best for photos and gradients. (24-bit models need neither.) |
+| `--bar-color auto/light/dark/keep` | boot progress bar color: `light` = white bar, `dark` = black bar, `keep` leaves it as it is. `auto` (default) picks light for dark pictures and dark for light ones. The U-Boot values `0` (light) and `1` (dark) also work |
 | `--dry-run` | the stick only runs the checks and writes nothing |
 | `--decode logo.bin out.png` | view a raw logo (a backup, a stock logo) upright |
 | `--out DIR` | output folder (default `bootlogo_usb`) |

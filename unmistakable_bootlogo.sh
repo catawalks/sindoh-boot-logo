@@ -13,7 +13,7 @@
 # 2. saves the current logo to the stick once (bootlogo_original.bin): put
 #    that file through sindoh_bootlogo.py again to go back;
 # 3. asks for a touch, writes the logo, reads it back to check it;
-# 4. sets the boot progress bar colour (U-Boot variable bar_color).
+# 4. sets the boot progress bar color (U-Boot variable bar_color).
 #
 # Rehearsal: an empty file "dry_run" next to the .she runs every check but
 # writes nothing (no backup, no flash, no U-Boot variable).

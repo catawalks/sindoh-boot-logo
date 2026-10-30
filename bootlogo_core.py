@@ -92,7 +92,7 @@ def to_rgb565(im, dither):
             g = min(255.0, max(0.0, data[p + 1] + cur[e + 1]))
             b = min(255.0, max(0.0, data[p + 2] + cur[e + 2]))
             # truncate, and diffuse the error against the 8-bit value the
-            # 16-bit colour decodes to, so exact colours stay exact
+            # 16-bit color decodes to, so exact colors stay exact
             r5, g6, b5 = int(r) >> 3, int(g) >> 2, int(b) >> 3
             er = r - _E5[r5]
             eg = g - _E6[g6]
@@ -120,7 +120,7 @@ def from_rgb565(data, fb):
 
 
 def preview_565(im):
-    """What the panel shows (16-bit colour, no dither), fast."""
+    """What the panel shows (16-bit color, no dither), fast."""
     lut5 = [_E5[v >> 3] for v in range(256)]
     lut6 = [_E6[v >> 2] for v in range(256)]
     return im.convert("RGB").point(lut5 + lut6 + lut5)
@@ -153,14 +153,30 @@ def from_raw(data, m):
 
 
 def preview(im, m):
-    """What the panel shows: 16-bit colour for rgb565 models."""
+    """What the panel shows: 16-bit color for rgb565 models."""
     return preview_565(im) if m["fmt"] == "rgb565" else im.convert("RGB")
 
 
+# The boot progress bar's color is the U-Boot variable bar_color, which the
+# kernel's display driver gets as mv61tft.bar_color (pxa168fb.bar_color on
+# the 1X/7X). It draws the bar over the logo. In the DP200 kernel
+# (rodin_progress_bar) the bar pixels are 0xffff (white) when bar_color is 0
+# and 0x0000 (black) otherwise. Sindoh sets 0 for its dark logos (Sindoh,
+# Leon3D) and 1 for light ones (Stanley, Mimaki).
+BAR_COLORS = {"light": "0", "dark": "1"}     # names for the U-Boot values
+BAR_NAMES = {"0": "Light", "1": "Dark", "keep": "unchanged"}
+
+
+def bar_value(choice):
+    """'light'/'dark' (any case) -> the U-Boot value; '0', '1', 'keep' as is."""
+    return BAR_COLORS.get(str(choice).lower(), str(choice))
+
+
 def auto_bar_color(upright):
-    """Sindoh's choice: 0 for dark logos, 1 for light ones."""
+    """Sindoh's choice: a light (white) bar on dark logos, a dark (black) one
+    on light logos. Returns the U-Boot value, "0" or "1"."""
     g = ImageOps.grayscale(upright).tobytes()
-    return "1" if sum(g) / len(g) >= 128 else "0"
+    return BAR_COLORS["dark"] if sum(g) / len(g) >= 128 else BAR_COLORS["light"]
 
 
 # ---------------------------------------------------------------- DES ----
