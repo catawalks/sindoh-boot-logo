@@ -13,7 +13,10 @@
 # 2. saves the current logo to the stick once (bootlogo_original.bin): put
 #    that file through sindoh_bootlogo.py again to go back;
 # 3. asks for a touch, writes the logo, reads it back to check it;
-# 4. sets the boot progress bar color (U-Boot variable bar_color).
+# 4. sets the boot progress bar color (U-Boot variable bar_color) and, on
+#    the DP200 family, its position for the Klipper port's kernel
+#    (bar_shift_x/bar_shift_y; the stock kernel ignores them). Done also when
+#    the logo itself is already installed, so the bar alone can be changed.
 #
 # Rehearsal: an empty file "dry_run" next to the .she runs every check but
 # writes nothing (no backup, no flash, no U-Boot variable).
@@ -22,6 +25,8 @@
 SIZE=@SIZE@
 MD5=@MD5@
 BAR_COLOR=@BAR_COLOR@
+BAR_SHIFT_X=@BAR_SHIFT_X@
+BAR_SHIFT_Y=@BAR_SHIFT_Y@
 TARGET=@TARGET@
 exec >/dev/console 2>&1
 STICK=${1:-/mnt/sda1/_update_rodin}
@@ -33,6 +38,17 @@ show() {
     echo "[bootlogo] $1 $2 $3"
 }
 fail() { show "$1" "$2" "Logo NOT changed"; sleep 5; exit 1; }
+# U-Boot variables (fw_setenv only when the value differs: NAND wear)
+setvar() {
+    [ "$2" = keep ] && return 0
+    [ "$(fw_printenv -n $1 2>/dev/null)" = "$2" ] || fw_setenv $1 $2
+}
+set_bar() {
+    command -v fw_printenv >/dev/null || return 0
+    setvar bar_color $BAR_COLOR
+    setvar bar_shift_x $BAR_SHIFT_X
+    setvar bar_shift_y $BAR_SHIFT_Y
+}
 DRY=0
 [ -f "$STICK/dry_run" ] && DRY=1
 
@@ -62,12 +78,17 @@ else
     WHERE=$LOGO_FILE
 fi
 if cmp -s $CUR "$NEW"; then
-    show "This logo is" "already installed" "Remove the stick"
+    if [ $DRY = 1 ]; then
+        show "This logo is" "already installed" "Dry run: nothing written"
+    else
+        set_bar
+        show "This logo is" "already installed" "Bar settings updated"
+    fi
     rm -f $CUR "$NEW"
     exit 0
 fi
 if [ $DRY = 1 ]; then
-    show "Dry run: checks OK" "$WHERE, bar $BAR_COLOR" "nothing written"
+    show "Dry run: checks OK" "$WHERE, bar $BAR_COLOR $BAR_SHIFT_X,$BAR_SHIFT_Y" "nothing written"
     rm -f $CUR "$NEW"
     exit 0
 fi
@@ -106,9 +127,7 @@ fi
 cmp -s $CUR "$NEW" || fail "Check failed" "power off, retry"
 rm -f $CUR "$NEW"
 
-if [ "$BAR_COLOR" != "keep" ] && command -v fw_printenv >/dev/null; then
-    [ "$(fw_printenv -n bar_color 2>/dev/null)" = "$BAR_COLOR" ] || fw_setenv bar_color $BAR_COLOR
-fi
+set_bar
 show "Boot logo updated" "Remove the stick" "Shown at next boot"
 sleep 3
 exit 0

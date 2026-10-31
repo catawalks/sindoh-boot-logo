@@ -20,7 +20,9 @@ The boot logo is one raw frame-buffer image that U-Boot shows at power-on:
 The 800 x 480 panels are mounted in portrait, so draw those logos upright at
 480 x 800; the tool turns them. A progress bar is drawn over the logo; its
 color is the U-Boot variable bar_color: --bar-color light (0, a white bar,
-for dark logos) or dark (1, a black bar, for light logos).
+for dark logos) or dark (1, a black bar, for light logos). On the DP200
+family, --bar-shift X,Y moves the bar (screen pixels, right and down) for the
+Klipper port's kernel; the stock kernel keeps it at its own spot.
 
 Other commands:
     python sindoh_bootlogo.py --decode bootlogo_original.bin original.png
@@ -83,6 +85,10 @@ def main():
                          "dark (black bar, for light logos), auto (from the picture, "
                          "default) or keep (leave as is). 0 = light and 1 = dark, the "
                          "U-Boot values, also work")
+    ap.add_argument("--bar-shift", default="center",
+                    help="DP200 family, Klipper port only: move the bar X,Y screen "
+                         "pixels (right, down), e.g. 10,0; center (10,0, the default), "
+                         "stock (0,0) or keep. The stock kernel ignores it")
     ap.add_argument("--dry-run", action="store_true",
                     help="the stick only runs the checks and writes nothing")
     ap.add_argument("--out", default="bootlogo_usb", help="output folder (default: bootlogo_usb)")
@@ -139,7 +145,14 @@ def main():
         bar = core.auto_bar_color(upright) if upright else "keep"
     else:
         bar = core.bar_value(a.bar_color)
-    she = core.build_usb(raw, a.model, key, bar, a.out, a.dry_run)
+    try:
+        shift = core.parse_bar_shift(a.bar_shift)
+    except ValueError as e:
+        sys.exit(str(e))
+    she = core.build_usb(raw, a.model, key, bar, a.out, a.dry_run, shift)
+    if upright and shift != "keep" and m.get("bar_shift"):
+        core.draw_bar(upright.copy(), bar if bar != "keep" else "0", shift).save(
+            os.path.join(a.out, "bootlogo_preview_bar.png"))
     os.makedirs(a.out, exist_ok=True)
     open(os.path.join(a.out, "bootlogo_new.bin"), "wb").write(raw)
     if upright:
@@ -148,6 +161,10 @@ def main():
     print(f"wrote {she}  (verified)" + ("  DRY RUN" if a.dry_run else ""))
     print(f"preview (as the screen shows it): {os.path.join(a.out, 'bootlogo_preview.png')}")
     print(f"progress bar color: {core.BAR_NAMES[bar]} (bar_color {bar})   logo md5: {hashlib.md5(raw).hexdigest()}")
+    if m.get("bar_shift"):
+        print("bar position (Klipper port): " + ("unchanged" if shift == "keep" else
+              "shift x %+d y %+d, preview with the bar: %s" % (
+                  shift[0], shift[1], os.path.join(a.out, "bootlogo_preview_bar.png"))))
     print(f"Copy the {m['folder']} folder to the root of a FAT32 USB stick, plug it into\n"
           "the printer and touch the screen when asked. The stick keeps the old logo\n"
           "as bootlogo_original.bin.")

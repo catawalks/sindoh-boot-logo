@@ -48,6 +48,12 @@ isn't known yet; see the end of this page.
   U-Boot variable `bar_color`: 0 draws a white (light) bar, 1 a black
   (dark) one. Sindoh uses 0 for dark logos (Sindoh, Leon3D) and 1 for light
   ones (Stanley, Mimaki).
+- **Bar position** (DP200 / Model 1 and 3DWOX 1): the stock kernel draws the
+  bar at a fixed spot, x 90-369 and y 480-493 of the upright 480 × 800
+  screen, which is 10 px left of center. The Klipper port's kernel draws the
+  same bar, moved by the U-Boot variables `bar_shift_x` (right) and
+  `bar_shift_y` (down) in screen pixels. Its default is 10, 0, which is
+  centered. The stock firmware ignores these variables.
 - **The stock logos:** DP200 and 3DWOX 1 have them in
   `/app/boot-logo_{sindoh,stanley,leon3d,mimaki}.bin`, and the others in
   `/boot/bootlogo_{sindoh,leon3d,rize}.bin`.
@@ -72,6 +78,9 @@ isn't known yet; see the end of this page.
    - choose the printer model (the preview changes to its screen) and the
      *Boot progress bar color*: *Auto* (picks from the picture), *Dark*
      (a black bar, for light logos) or *Light* (a white bar, for dark logos);
+   - DP200 family: the *Bar position* (pixels right and down; *Center* = 10, 0,
+     *Stock* = 0, 0), shown on the preview. Only the Klipper port's kernel
+     uses it;
    - the update key is built in. If your printer uses another one,
      **Key file...** loads the `crypto_key.dat` from your printer's `/app`, or
      **Type key...** takes it as text.
@@ -115,6 +124,7 @@ python sindoh_bootlogo.py bootlogo_original.bin --model dp200
 | `--invert` | invert the picture's colors |
 | `--no-dither` | plain rounding to 16-bit color, best for flat-color logos. The default dithers, best for photos and gradients. (24-bit models need neither.) |
 | `--bar-color auto/light/dark/keep` | boot progress bar color: `light` = white bar, `dark` = black bar, `keep` leaves it as it is. `auto` (default) picks light for dark pictures and dark for light ones. The U-Boot values `0` (light) and `1` (dark) also work |
+| `--bar-shift X,Y` | DP200 family: move the bar X pixels right and Y down for the Klipper port's kernel (x -90..110, y -480..306). `center` (10,0, the default), `stock` (0,0) or `keep`. Also writes `bootlogo_preview_bar.png`. The stock kernel ignores it |
 | `--dry-run` | the stick only runs the checks and writes nothing |
 | `--decode logo.bin out.png` | view a raw logo (a backup, a stock logo) upright |
 | `--out DIR` | output folder (default `bootlogo_usb`) |
@@ -133,14 +143,16 @@ without the option, to install for real.
    `/sys/kernel/board_name`: the file on Prime_r2 boards, NAND otherwise;
 2. refuses to write if the image's size or md5 doesn't match, or if it's
    bigger than the partition;
-3. returns without writing if the logo is already installed;
+3. if the logo is already installed, writes no logo, only the bar settings
+   of step 6 (so the bar can be changed alone);
 4. saves the current logo to the stick once (`bootlogo_original.bin`);
 5. asks for a touch, then writes the logo and reads it back to compare.
    NAND: erase, then `nandwrite -p`. File: writes `bootlogo.bin.new`, then
    renames it over `bootlogo.bin`. Sindoh's updates leave `bootlogo.bin` as
    a symlink to the stock logo; the rename replaces the link, not the stock
    file;
-6. sets `bar_color`.
+6. sets `bar_color`, plus `bar_shift_x` / `bar_shift_y` on the DP200 family
+   (with `fw_setenv`, only when a value changes).
 
 A failed write leaves the printer booting normally (the logo is only a
 picture). Run the stick again, or restore `bootlogo_original.bin`.

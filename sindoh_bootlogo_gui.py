@@ -45,6 +45,10 @@ class App:
         self.show565 = tk.BooleanVar(value=True)
         self.bar = tk.StringVar(value="auto")   # "auto", or core.BAR_COLORS value
         self.dry = tk.BooleanVar(value=False)
+        # bar position for the Klipper port's kernel (DP200 family), screen pixels
+        self.shift_x = tk.IntVar(value=core.BAR_SHIFT_CENTER[0])
+        self.shift_y = tk.IntVar(value=core.BAR_SHIFT_CENTER[1])
+        self.show_bar = tk.BooleanVar(value=True)
         self.status = tk.StringVar(value="Open a picture to start.")
         self.key_status = tk.StringVar(value="built-in key")
         self.bar_auto_text = tk.StringVar(value="Auto")
@@ -142,6 +146,29 @@ class App:
             else:
                 rb.config(textvariable=self.bar_auto_text)
             rb.grid(row=0, column=i, sticky="w", padx=(0, 10))
+            rb.config(command=self.redraw)
+        # bar position: only the Klipper port's kernel moves the bar
+        self.shift_frame = s = ttk.Frame(f)
+        s.grid(row=2, column=0, columnspan=4, sticky="w", pady=(6, 0))
+        ttk.Label(s, text="Bar position").grid(row=0, column=0, sticky="w")
+        (x0, x1), (y0, y1) = core.BAR_SHIFT_RANGE
+        for i, (t, var, lo, hi) in enumerate((("right", self.shift_x, x0, x1),
+                                             ("down", self.shift_y, y0, y1))):
+            ttk.Spinbox(s, from_=lo, to=hi, width=5, textvariable=var,
+                        command=self.redraw).grid(row=0, column=1 + 2 * i, padx=(8, 2))
+            ttk.Label(s, text=t).grid(row=0, column=2 + 2 * i, sticky="w")
+        ttk.Button(s, text="Center", command=lambda: self.set_shift(core.BAR_SHIFT_CENTER)).grid(
+            row=0, column=5, padx=(10, 2))
+        ttk.Button(s, text="Stock", command=lambda: self.set_shift(core.BAR_SHIFT_STOCK)).grid(
+            row=0, column=6)
+        ttk.Checkbutton(s, text="Show the bar in the preview", variable=self.show_bar,
+                        command=self.redraw).grid(row=1, column=0, columnspan=7, sticky="w")
+        ttk.Label(s, foreground="#555", wraplength=360, justify="left", text=(
+            "Screen pixels. Used by the Klipper port's kernel; the stock firmware always "
+            "draws the bar at its own spot (Stock), 10 px left of center.")).grid(
+            row=2, column=0, columnspan=7, sticky="w")
+        for v in (self.shift_x, self.shift_y):
+            v.trace_add("write", lambda *a: self.redraw())
         ttk.Label(f, text="Key (built in)").grid(row=3, column=0, sticky="w", pady=(6, 0))
         ttk.Button(f, text="Key file...", command=self.load_key).grid(row=3, column=1, sticky="w", padx=6, pady=(6, 0))
         ttk.Button(f, text="Type key...", command=self.type_key).grid(row=3, column=2, sticky="w", pady=(6, 0))
@@ -204,6 +231,17 @@ class App:
         out.paste(im, (x, y), im)
         return out
 
+    def bar_shift(self):
+        """(x, y) from the boxes, or None while one isn't a valid number."""
+        try:
+            return core.parse_bar_shift(f"{self.shift_x.get()},{self.shift_y.get()}")
+        except (ValueError, tk.TclError):
+            return None
+
+    def set_shift(self, xy):
+        self.shift_x.set(xy[0])
+        self.shift_y.set(xy[1])
+
     def is_identity(self):
         return (self.scale.get() == 100 and self.angle.get() % 360 == 0 and not self.flip
                 and self.dx == 0 and self.dy == 0)
@@ -215,7 +253,12 @@ class App:
         im = self.compose(True)
         if self.show565.get():
             im = core.preview(im, core.MODELS[self.model_key()])
-        self.bar_auto_text.set(f"Auto ({core.BAR_NAMES[core.auto_bar_color(im)]})")
+        auto = core.auto_bar_color(im)
+        self.bar_auto_text.set(f"Auto ({core.BAR_NAMES[auto]})")
+        shift = self.bar_shift()
+        if self.show_bar.get() and core.MODELS[self.model_key()].get("bar_shift")                 and shift not in (None, "keep"):
+            bar = self.bar.get()
+            core.draw_bar(im, auto if bar == "auto" else bar, shift, self.view())
         self.tkimg = ImageTk.PhotoImage(im)
         self.canvas.delete("all")
         self.canvas.create_image(0, 0, image=self.tkimg, anchor="nw")
@@ -328,6 +371,10 @@ class App:
         self.key_status.set("built-in key")
         old = (int(self.canvas.cget("width")), int(self.canvas.cget("height")))
         self.fit_canvas()
+        if m.get("bar_shift"):
+            self.shift_frame.grid()
+        else:
+            self.shift_frame.grid_remove()
         new = (int(self.canvas.cget("width")), int(self.canvas.cget("height")))
         if self.src is not None and old != new and not self.raw_exact:
             self.fit(False)                  # other screen shape: fit the picture again
@@ -382,6 +429,11 @@ class App:
                     "This stick also holds a Sindoh firmware update (update.she). It runs after "
                     "the logo and writes the stock logo back. Continue anyway?")):
                 return
+        shift = self.bar_shift() if m.get("bar_shift") else "keep"
+        if shift is None:
+            (x0, x1), (y0, y1) = core.BAR_SHIFT_RANGE
+            messagebox.showerror("Bar position", f"Right must be {x0}..{x1} and down {y0}..{y1}.")
+            return
         upright = self.compose(False)
         bar = self.bar.get()
         dither, dry = self.dither.get(), self.dry.get()
@@ -394,8 +446,9 @@ class App:
             try:
                 raw = core.to_raw(upright, m, dither)
                 b = core.auto_bar_color(core.from_raw(raw, m)) if bar == "auto" else bar
-                path = core.build_usb(raw, model, key, b, out, dry)
-                msg = (f"Saved {path} (verified), progress bar {core.BAR_NAMES[b]}"
+                path = core.build_usb(raw, model, key, b, out, dry, shift)
+                pos = "" if shift == "keep" else ", bar shift x %+d y %+d" % shift
+                msg = (f"Saved {path} (verified), progress bar {core.BAR_NAMES[b]}{pos}"
                        f"{', DRY RUN' if dry else ''}.\nlogo md5 {hashlib.md5(raw).hexdigest()}\n\n"
                        "Plug the stick into the printer and touch the screen when asked. "
                        "The stick keeps the old logo as bootlogo_original.bin.")

@@ -36,10 +36,10 @@ LOGO_NAME = "bootlogo_new.bin"
 MODELS = {
     "dp200": dict(name="DP200 / DP201 / Model 1 (all brands)", fb=(800, 480), fmt="rgb565",
                   rotate=True, target="mtd", folder="_update_rodin", cipher="des3",
-                  key="sindoh024601779", verified=True),
+                  key="sindoh024601779", verified=True, bar_shift=True),
     "3dwox1": dict(name="3DWOX 1", fb=(800, 480), fmt="rgb565",
                    rotate=True, target="mtd", folder="_update_rodin_up", cipher="aes",
-                   key="sindoh024601779U", verified=True),
+                   key="sindoh024601779U", verified=True, bar_shift=True),
     "2x": dict(name="3DWOX 2X", fb=(800, 480), fmt="bgr888",
                rotate=True, target="auto", folder="_update_rodin_prime", cipher="des3",
                key="sindoh024601779", verified=True),
@@ -177,6 +177,54 @@ def auto_bar_color(upright):
     on light logos. Returns the U-Boot value, "0" or "1"."""
     g = ImageOps.grayscale(upright).tobytes()
     return BAR_COLORS["dark"] if sum(g) / len(g) >= 128 else BAR_COLORS["light"]
+
+
+# The bar's position (DP200 family). The stock kernel draws it at a fixed
+# spot, upright x 90-369 and y 480-493 of 480 x 800, which is 10 px left of
+# center. The Klipper port's mainline kernel (dp200-bootbar) draws the same
+# bar moved by the U-Boot variables bar_shift_x (right) and bar_shift_y
+# (down), in screen pixels; without them it uses +10/0 (centered). The
+# stock kernel ignores them.
+BAR_BOX = (90, 480, 369, 493)                # upright x0, y0, x1, y1 (inclusive)
+BAR_SHIFT_CENTER = (10, 0)
+BAR_SHIFT_STOCK = (0, 0)
+BAR_SHIFT_RANGE = ((-90, 110), (-480, 306))  # keeps the bar on the screen
+
+
+def bar_shift_models():
+    return [k for k, m in MODELS.items() if m.get("bar_shift")]
+
+
+def parse_bar_shift(text):
+    """'X,Y' (screen pixels), 'center', 'stock' or 'keep' -> (x, y) or 'keep'."""
+    t = str(text).strip().lower()
+    if t == "keep":
+        return "keep"
+    if t in ("center", "centre"):
+        return BAR_SHIFT_CENTER
+    if t == "stock":
+        return BAR_SHIFT_STOCK
+    try:
+        x, y = (int(v) for v in t.split(","))
+    except ValueError:
+        raise ValueError(f"bar shift {text!r}: give X,Y in pixels (e.g. 10,0), center, stock or keep")
+    (x0, x1), (y0, y1) = BAR_SHIFT_RANGE
+    if not (x0 <= x <= x1 and y0 <= y <= y1):
+        raise ValueError(f"bar shift {x},{y}: x must be {x0}..{x1} and y {y0}..{y1}")
+    return x, y
+
+
+def draw_bar(im, bar_color, shift, k=1.0):
+    """Draw the full progress bar on an upright preview scaled by k (as the
+    vendor kernel draws it: a 280 x 14 outline with rounded corners)."""
+    from PIL import ImageDraw
+    c = (0, 0, 0) if str(bar_color) == "1" else (255, 255, 255)
+    x0, y0, x1, y1 = BAR_BOX
+    sx, sy = shift
+    box = [round((x0 + sx) * k), round((y0 + sy) * k),
+           round((x1 + sx + 1) * k) - 1, round((y1 + sy + 1) * k) - 1]
+    ImageDraw.Draw(im).rounded_rectangle(box, radius=max(1, round(2 * k)), fill=c)
+    return im
 
 
 # ---------------------------------------------------------------- DES ----
@@ -554,20 +602,27 @@ def make_tar_bz2(files):
     return bz2.compress(buf.getvalue(), 9)
 
 
-def install_script(size, md5, bar_color, target="mtd"):
+def install_script(size, md5, bar_color, target="mtd", bar_shift="keep"):
     text = open(resource(SCRIPT_NAME), "rb").read().replace(b"\r\n", b"\n")
+    sx, sy = ("keep", "keep") if bar_shift == "keep" else bar_shift
     return (text.replace(b"@SIZE@", str(size).encode())
                 .replace(b"@TARGET@", target.encode())
                 .replace(b"@MD5@", md5.encode())
-                .replace(b"@BAR_COLOR@", str(bar_color).encode()))
+                .replace(b"@BAR_COLOR@", str(bar_color).encode())
+                .replace(b"@BAR_SHIFT_X@", str(sx).encode())
+                .replace(b"@BAR_SHIFT_Y@", str(sy).encode()))
 
 
-def build_usb(raw, model, key, bar_color, out_dir, dry_run=False):
+def build_usb(raw, model, key, bar_color, out_dir, dry_run=False, bar_shift="keep"):
     """Write <out_dir>/<folder>/unmistakable_bootlogo.she, verify it and
-    return its path. raw = the raw logo (see MODELS for its format)."""
+    return its path. raw = the raw logo (see MODELS for its format).
+    bar_shift: (x, y) screen pixels for the Klipper port's kernel, or "keep"
+    (always "keep" on models without it)."""
     m = MODELS[model]
     md5 = hashlib.md5(raw).hexdigest()
-    script = install_script(len(raw), md5, bar_color, m["target"])
+    if not m.get("bar_shift"):
+        bar_shift = "keep"
+    script = install_script(len(raw), md5, bar_color, m["target"], bar_shift)
     she = encrypt(m["cipher"], key, make_tar_bz2([(SCRIPT_NAME, script, 0o755),
                                                    (LOGO_NAME, raw, 0o644)]))
     # self-check: decrypt like the printer does and compare
