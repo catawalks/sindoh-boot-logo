@@ -148,25 +148,26 @@ class App:
             rb.grid(row=0, column=i, sticky="w", padx=(0, 10))
             rb.config(command=self.redraw)
         # bar position: only the Klipper port's kernel moves the bar
+        self.shift_lbl = ttk.Label(f, text="Bar position")
+        self.shift_lbl.grid(row=2, column=0, sticky="nw", pady=(8, 0))
         self.shift_frame = s = ttk.Frame(f)
-        s.grid(row=2, column=0, columnspan=4, sticky="w", pady=(6, 0))
-        ttk.Label(s, text="Bar position").grid(row=0, column=0, sticky="w")
+        s.grid(row=2, column=1, columnspan=3, sticky="w", padx=6, pady=(6, 0))
         (x0, x1), (y0, y1) = core.BAR_SHIFT_RANGE
         for i, (t, var, lo, hi) in enumerate((("right", self.shift_x, x0, x1),
                                              ("down", self.shift_y, y0, y1))):
             ttk.Spinbox(s, from_=lo, to=hi, width=5, textvariable=var,
-                        command=self.redraw).grid(row=0, column=1 + 2 * i, padx=(8, 2))
-            ttk.Label(s, text=t).grid(row=0, column=2 + 2 * i, sticky="w")
+                        command=self.redraw).grid(row=0, column=2 * i, padx=(0 if i == 0 else 8, 2))
+            ttk.Label(s, text=t).grid(row=0, column=1 + 2 * i, sticky="w")
         ttk.Button(s, text="Center", command=lambda: self.set_shift(core.BAR_SHIFT_CENTER)).grid(
-            row=0, column=5, padx=(10, 2))
+            row=0, column=4, padx=(10, 2))
         ttk.Button(s, text="Stock", command=lambda: self.set_shift(core.BAR_SHIFT_STOCK)).grid(
-            row=0, column=6)
+            row=0, column=5)
         ttk.Checkbutton(s, text="Show the bar in the preview", variable=self.show_bar,
-                        command=self.redraw).grid(row=1, column=0, columnspan=7, sticky="w")
-        ttk.Label(s, foreground="#555", wraplength=360, justify="left", text=(
-            "Screen pixels. Used by the Klipper port's kernel; the stock firmware always "
-            "draws the bar at its own spot (Stock), 10 px left of center.")).grid(
-            row=2, column=0, columnspan=7, sticky="w")
+                        command=self.redraw).grid(row=1, column=0, columnspan=6, sticky="w")
+        ttk.Label(s, foreground="#555", wraplength=380, justify="left", text=(
+            "Pixels on the screen. Only the Klipper port's kernel moves the bar; "
+            "the stock firmware keeps it at Stock (10 px left of center).")).grid(
+            row=2, column=0, columnspan=6, sticky="w")
         for v in (self.shift_x, self.shift_y):
             v.trace_add("write", lambda *a: self.redraw())
         ttk.Label(f, text="Key (built in)").grid(row=3, column=0, sticky="w", pady=(6, 0))
@@ -371,10 +372,11 @@ class App:
         self.key_status.set("built-in key")
         old = (int(self.canvas.cget("width")), int(self.canvas.cget("height")))
         self.fit_canvas()
-        if m.get("bar_shift"):
-            self.shift_frame.grid()
-        else:
-            self.shift_frame.grid_remove()
+        for w in (self.shift_lbl, self.shift_frame):
+            if m.get("bar_shift"):
+                w.grid()
+            else:
+                w.grid_remove()
         new = (int(self.canvas.cget("width")), int(self.canvas.cget("height")))
         if self.src is not None and old != new and not self.raw_exact:
             self.fit(False)                  # other screen shape: fit the picture again
